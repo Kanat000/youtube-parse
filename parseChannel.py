@@ -5,6 +5,7 @@ from database import Sqlite
 from config import dbName
 from auth import youtube_authenticate
 from urllib import parse as p
+from googleapiclient.discovery import build
 
 youtubeAPI = youtube_authenticate()
 
@@ -60,7 +61,9 @@ def get_data(channel_id, url):
     statistics = items[0]["statistics"]
     title = snippet['title']
     logo = snippet['thumbnails']['default']['url']
-    subscriber_count = statistics['subscriberCount']
+    subscriber_count = 0
+    if not statistics['hiddenSubscriberCount']:
+        subscriber_count = statistics['subscriberCount']
     data = {
         'channel_id': channel_id,
         'channel_name': title,
