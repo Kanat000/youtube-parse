@@ -1,14 +1,22 @@
 import sqlite3
+import pymysql
+from config import db_config
 
 
-class Sqlite:
+class Mysql:
     def __init__(self, db):
-        self.conn = sqlite3.connect(db)
+        self.conn = pymysql.connect(
+            host=db_config['host'],
+            port=db_config['port'],
+            user=db_config['user'],
+            password=db_config['password'],
+            database=db
+        )
         self.cur = self.conn.cursor()
 
     def create_youtube_table(self):
         self.cur.execute('Create Table if not exists youtube('
-                         'id integer PRIMARY KEY AUTOINCREMENT NOT NULL,'
+                         'id int PRIMARY KEY AUTO_INCREMENT NOT NULL,'
                          'channel_id varchar(255),'
                          'channel_name varchar(255),'
                          'link varchar(255),'
@@ -16,6 +24,7 @@ class Sqlite:
                          'count_of_subscribers varchar(255)'
                          ')'
                          )
+        self.conn.commit()
 
     def get_channels(self):
         self.cur.execute("Select channel_id from youtube")
@@ -27,7 +36,7 @@ class Sqlite:
 
     def insert_new_channel(self, data):
         self.cur.execute(
-            'Insert into youtube(channel_id, channel_name, link, logo, count_of_subscribers) values(?,?,?,?,?)',
+            'Insert into youtube(channel_id, channel_name, link, logo, count_of_subscribers) values(%s,%s,%s,%s,%s)',
             (data['channel_id'], data['channel_name'], data['link'], data['logo'], data['count_of_subscribers']))
         self.conn.commit()
 

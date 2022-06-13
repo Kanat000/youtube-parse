@@ -1,13 +1,17 @@
-import json
 from urls import url_list
-import re
-from database import Sqlite
+from database import Mysql
 from config import dbName
 from auth import youtube_authenticate
 from urllib import parse as p
-from googleapiclient.discovery import build
+import os
 
-youtubeAPI = youtube_authenticate()
+
+def count_of_tokens(dir):
+    count = 0
+    for x in list(os.scandir(dir)):
+        if x.is_file():
+            count += 1
+    return count
 
 
 def parse_youtube_url(url):
@@ -54,8 +58,8 @@ def get_channel_id_by_url(youtube, url):
             return c_id
 
 
-def get_data(channel_id, url):
-    response = get_channel_details(youtube=youtubeAPI, id=channel_id)
+def get_data(youtube, channel_id, url):
+    response = get_channel_details(youtube=youtube, id=channel_id)
     items = response["items"]
     snippet = items[0]["snippet"]
     statistics = items[0]["statistics"]
@@ -77,21 +81,44 @@ def get_data(channel_id, url):
 
 class Parser:
     def __init__(self):
-        self.db = Sqlite(dbName)
+        self.db = Mysql(dbName)
+        self.file_num = 1
+        self.youtubeAPI = youtube_authenticate(self.file_num)
+
+    def __error_checker(self, e):
+        if e.args[0]['status'] == '403':
+            if self.file_num < count_of_tokens('tokens'):
+                self.file_num += 1
+                print(f'Updated token to "token{self.file_num}.pickle".')
+                self.youtubeAPI = youtube_authenticate(self.file_num)
+                pass
+            else:
+                print('Limits of all accounts is ended.')
+        else:
+            print(e)
 
     def initialize(self):
         self.db.create_youtube_table()
         for url in url_list:
             if not self.db.exists_channel_by_url(url):
-                channel_id = get_channel_id_by_url(youtube=youtubeAPI, url=url)
-                self.db.insert_new_channel(get_data(channel_id, url))
+                try:
+                    channel_id = get_channel_id_by_url(youtube=self.youtubeAPI, url=url)
+                    self.db.insert_new_channel(get_data(self.youtubeAPI, channel_id, url))
+                except Exception as e:
+                    self.__error_checker(e)
 
         print('\nDatabase is ready for work!!!')
 
     def update_information(self):
+        self.file_num = 1
+        self.youtubeAPI = youtube_authenticate(self.file_num)
         channels = self.db.get_channels()
         for channel in channels:
-            channel_id = channel[0]
-            url = self.db.get_url_by_channel_id(channel_id)
-            self.db.update_channel_info(get_data(channel_id, url))
+            try:
+                channel_id = channel[0]
+                url = self.db.get_url_by_channel_id(channel_id)
+                self.db.update_channel_info(get_data(self.youtubeAPI, channel_id, url))
+            except Exception as e:
+                self.__error_checker(e)
+
         print('\nDatabase updated!!!')
